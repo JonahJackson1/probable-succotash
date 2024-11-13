@@ -3,19 +3,67 @@ function generateRandomNumber(min, max) {
   return Math.round(Math.random() * (max - min) + min);
 }
 
-function updateEntityPosition(entity, dmx, dmy, speed) {
-  // normalize movement if diagonal to maintain consistent speed
-  const length = Math.sqrt(dmx * dmx + dmy * dmy);
-  if (length > 0) {
-    dmx = (dmx / length) * speed;
-    dmy = (dmy / length) * speed;
+class App {
+  /**
+   * Takes in the entity to adjust, the distance to move x / y, and the speed at which to do it.
+   * @param {object} entity
+   * @param {number} dmx
+   * @param {number} dmy
+   * @param {number} speed
+   */
+  static updateEntityPosition(entity, dmx, dmy, speed) {
+    // normalize movement if diagonal to maintain consistent speed
+    const length = Math.sqrt(dmx * dmx + dmy * dmy);
+    if (length > 0) {
+      dmx = (dmx / length) * speed;
+      dmy = (dmy / length) * speed;
+    }
+
+    entity.position.x += dmx;
+    entity.position.y += dmy;
   }
 
-  entity.position.x += dmx;
-  entity.position.y += dmy;
-}
+  /**
+   * takes in the current index, the total number of index, and the shape in which to arrange them.
+   * @param {number} index
+   * @param {number} total
+   * @param {object} param2
+   * @returns
+   */
+  static getEntityCoordinatesByIndex(
+    index,
+    total = 60,
+    {
+      shape = "circle",
+      center = { x: 0, y: 0 },
+      radius = 500,
+      sideLength = 500,
+    } = {}
+  ) {
+    switch (shape) {
+      case "circle": {
+        const angleIncrement = (2 * Math.PI) / total;
+        const angle = index * angleIncrement;
+        return {
+          x: center.x + radius * Math.cos(angle),
+          y: center.y + radius * Math.sin(angle),
+        };
+      }
+      case "square": {
+        const entitiesPerSide = Math.ceil(Math.sqrt(total));
+        const spacing = sideLength / entitiesPerSide;
+        const row = Math.floor(index / entitiesPerSide);
+        const col = index % entitiesPerSide;
+        return {
+          x: center.x + col * spacing - sideLength / 2 + spacing / 2,
+          y: center.y + row * spacing - sideLength / 2 + spacing / 2,
+        };
+      }
+      default:
+        throw new Error(`Unsupported shape type: ${shape}`);
+    }
+  }
 
-class App {
   createStaticEntity({
     id = generateRandomNumber(1, 99999),
     position = {
@@ -35,7 +83,7 @@ class App {
     };
   }
 
-  createMoveableEntity({
+  createVariableEntity({
     id = generateRandomNumber(1, 99999),
     position = {
       x: generateRandomNumber(-1000, 1000),
@@ -44,7 +92,6 @@ class App {
     color = "blue",
     height = generateRandomNumber(1, 100),
     width = generateRandomNumber(1, 3),
-    // speed = generateRandomNumber(0.5, 2.4),
     // speed = generateRandomNumber(0.5, 2.8),
     speed = 2.5,
     chase = true,
@@ -60,78 +107,42 @@ class App {
     };
   }
 
-  createCameraEntity() {
+  createCameraEntity({
+    id = generateRandomNumber(1, 99999),
+    position = { x: 0, y: 0 },
+    color = "#00000000",
+    width = 0,
+    height = 0,
+    speed = 2.5,
+  } = {}) {
     return {
-      id: generateRandomNumber(1, 99999),
-      position: { x: 0, y: 0 },
-      color: "#00000000",
-      width: 0,
-      height: 0,
-      speed: 2.5,
-      health: 100,
+      id,
+      position,
+      color,
+      width,
+      height,
+      speed,
     };
   }
 
-  updateCameraPosition() {
-    // camera movement
-    let dmx = 0;
-    let dmy = 0;
-    updateEntityPosition(this.camera, dmx, dmy, this.camera.speed);
-  }
-
-  updateMoveablesPosition() {
-    // moveable movement
-    for (const moveable of this.moveables) {
-      // moveable speed
-      updateEntityPosition(moveable, 0, -1, moveable.speed);
-    }
-  }
-
-  positionEntities(
-    index,
-    total = 60,
-    {
-      shape = "circle", // default shape is circle
-      center = { x: 0, y: 0 },
-      radius = 500,
-      sideLength = 500,
-    } = {}
-  ) {
-    if (shape === "circle") {
-      const angleIncrement = (2 * Math.PI) / total;
-      const angle = index * angleIncrement;
-      return {
-        x: center.x + radius * Math.cos(angle),
-        y: center.y + radius * Math.sin(angle),
-      };
-    } else if (shape === "square") {
-      const entitiesPerSide = Math.ceil(Math.sqrt(total));
-      const spacing = sideLength / entitiesPerSide;
-      const row = Math.floor(index / entitiesPerSide);
-      const col = index % entitiesPerSide;
-      return {
-        x: center.x + col * spacing - sideLength / 2 + spacing / 2,
-        y: center.y + row * spacing - sideLength / 2 + spacing / 2,
-      };
-    }
-    // Handle unexpected shape values
-    throw new Error(`Unsupported shape type: ${shape}`);
-  }
-
   performLoop() {
-    // set default transform to clear the canvas
+    // * set default transform to clear the canvas
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    this.updateCameraPosition();
+    // * update camera position
+    App.updateEntityPosition(this.camera, 0, 0, this.camera.speed);
 
-    this.updateMoveablesPosition();
+    // * update moveables position
+    for (const moveable of this.moveables) {
+      App.updateEntityPosition(moveable, 0, 0, moveable.speed);
+    }
 
-    // set view
+    // * set view
     this.view.translateX = -this.camera.position.x + this.canvas.width * 0.5;
     this.view.translateY = -this.camera.position.y + this.canvas.height * 0.5;
 
-    // apply view
+    // * apply view
     this.ctx.setTransform(
       this.view.scaleX,
       this.view.skewY,
@@ -141,7 +152,7 @@ class App {
       this.view.translateY
     );
 
-    // draw world
+    // * draw world / all entities
     for (const entity of this.entities) {
       this.ctx.fillStyle = entity.color;
       this.ctx.fillRect(
@@ -186,11 +197,11 @@ class App {
 
     // * these objects can have a speed and so on to be able to move around the screen
     this.moveables = Array.from({ length: 120 }).map((_, i) =>
-      this.createMoveableEntity({
+      this.createVariableEntity({
         height: generateRandomNumber(1, 100),
         width: generateRandomNumber(1, 3),
         color: "#3b86ccb2",
-        position: this.positionEntities(i, 120),
+        position: App.getEntityCoordinatesByIndex(i, 120),
       })
     );
 
@@ -201,7 +212,7 @@ class App {
           height: generateRandomNumber(1, 100),
           width: generateRandomNumber(1, 3),
           color: "#3b86ccb2",
-          position: this.positionEntities(i, -480),
+          position: App.getEntityCoordinatesByIndex(i, -480),
         })
       ),
       ...Array.from({ length: 240 }).map((_, i) =>
@@ -209,7 +220,7 @@ class App {
           height: generateRandomNumber(1, 100),
           width: generateRandomNumber(1, 3),
           color: "#bf2138b2",
-          position: this.positionEntities(i, 480),
+          position: App.getEntityCoordinatesByIndex(i, 480),
         })
       ),
       // * these just hangout
@@ -217,8 +228,10 @@ class App {
         this.createStaticEntity({
           height: generateRandomNumber(1, 18),
           width: generateRandomNumber(1, 3),
-          color: "#a3b8c4",
-          position: this.positionEntities(i, 1600, { shape: "square" }),
+          color: "#a3b8c4b2",
+          position: App.getEntityCoordinatesByIndex(i, 1600, {
+            shape: "square",
+          }),
         })
       ),
       // * this is the perspective of the user, can move
