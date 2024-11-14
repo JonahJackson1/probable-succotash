@@ -4,6 +4,65 @@ function generateRandomNumber(min, max) {
 }
 
 class App {
+  static createStaticEntity({
+    id = generateRandomNumber(1, 99999),
+    position = {
+      x: generateRandomNumber(-1500, 1500),
+      y: generateRandomNumber(-1500, 1500),
+    },
+    color = "red",
+    height = generateRandomNumber(50, 1500),
+    width = generateRandomNumber(50, 1500),
+  } = {}) {
+    return {
+      id,
+      position,
+      color,
+      width,
+      height,
+    };
+  }
+
+  static createVariableEntity({
+    id = generateRandomNumber(1, 99999),
+    position = {
+      x: generateRandomNumber(-1000, 1000),
+      y: generateRandomNumber(-1000, 1000),
+    },
+    color = "blue",
+    height = generateRandomNumber(1, 100),
+    width = generateRandomNumber(1, 3),
+    // speed = generateRandomNumber(0.5, 2.8),
+    speed = 1,
+  } = {}) {
+    return {
+      id,
+      position,
+      color,
+      height,
+      width,
+      speed,
+    };
+  }
+
+  static createCameraEntity({
+    id = generateRandomNumber(1, 99999),
+    position = { x: 0, y: 0 },
+    color = "#00000000",
+    width = 0,
+    height = 0,
+    speed = 1,
+  } = {}) {
+    return {
+      id,
+      position,
+      color,
+      width,
+      height,
+      speed,
+    };
+  }
+
   /**
    * Takes in the entity to adjust, the distance to move x / y, and the speed at which to do it.
    * @param {object} entity
@@ -30,7 +89,7 @@ class App {
    * @param {object} param2
    * @returns
    */
-  static getEntityCoordinatesByIndex(
+  static getCoordinatesByIndex(
     index,
     total = 60,
     {
@@ -40,13 +99,23 @@ class App {
       sideLength = 500,
     } = {}
   ) {
+    if (index < 0 || total < 0)
+      throw new Error(`index or total was less than 0!`);
+
     switch (shape) {
       case "circle": {
-        const angleIncrement = (2 * Math.PI) / total;
-        const angle = index * angleIncrement;
+        const maxRadius = radius;
+        const scalingFactor = Math.sqrt(total); // Density control based on total
+
+        const a = maxRadius / scalingFactor; // Initial offset from the center
+        const b = maxRadius / scalingFactor; // Controls spacing between points
+
+        const angle = index * 0.5; // Multiplier adjusts spiral density
+        const distance = a + b * Math.sqrt(index); // Gradual outward spread
+
         return {
-          x: center.x + radius * Math.cos(angle),
-          y: center.y + radius * Math.sin(angle),
+          x: center.x + distance * Math.cos(angle),
+          y: center.y + distance * Math.sin(angle),
         };
       }
       case "square": {
@@ -62,109 +131,6 @@ class App {
       default:
         throw new Error(`Unsupported shape type: ${shape}`);
     }
-  }
-
-  createStaticEntity({
-    id = generateRandomNumber(1, 99999),
-    position = {
-      x: generateRandomNumber(-1500, 1500),
-      y: generateRandomNumber(-1500, 1500),
-    },
-    color = "red",
-    height = generateRandomNumber(50, 1500),
-    width = generateRandomNumber(50, 1500),
-  } = {}) {
-    return {
-      id,
-      position,
-      color,
-      width,
-      height,
-    };
-  }
-
-  createVariableEntity({
-    id = generateRandomNumber(1, 99999),
-    position = {
-      x: generateRandomNumber(-1000, 1000),
-      y: generateRandomNumber(-1000, 1000),
-    },
-    color = "blue",
-    height = generateRandomNumber(1, 100),
-    width = generateRandomNumber(1, 3),
-    // speed = generateRandomNumber(0.5, 2.8),
-    speed = 2.5,
-    chase = true,
-  } = {}) {
-    return {
-      id,
-      position,
-      color,
-      height,
-      width,
-      speed,
-      chase,
-    };
-  }
-
-  createCameraEntity({
-    id = generateRandomNumber(1, 99999),
-    position = { x: 0, y: 0 },
-    color = "#00000000",
-    width = 0,
-    height = 0,
-    speed = 2.5,
-  } = {}) {
-    return {
-      id,
-      position,
-      color,
-      width,
-      height,
-      speed,
-    };
-  }
-
-  performLoop() {
-    // * set default transform to clear the canvas
-    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-    // * update camera position
-    App.updateEntityPosition(this.camera, 0, 0, this.camera.speed);
-
-    // * update moveables position
-    for (const moveable of this.moveables) {
-      App.updateEntityPosition(moveable, 0, 0, moveable.speed);
-    }
-
-    // * set view
-    this.view.translateX = -this.camera.position.x + this.canvas.width * 0.5;
-    this.view.translateY = -this.camera.position.y + this.canvas.height * 0.5;
-
-    // * apply view
-    this.ctx.setTransform(
-      this.view.scaleX,
-      this.view.skewY,
-      this.view.skewX,
-      this.view.scaleY,
-      this.view.translateX,
-      this.view.translateY
-    );
-
-    // * draw world / all entities
-    for (const entity of this.entities) {
-      this.ctx.fillStyle = entity.color;
-      this.ctx.fillRect(
-        entity.position.x - entity.width * 0.5,
-        entity.position.y - entity.height * 0.5,
-        entity.width,
-        entity.height
-      );
-    }
-
-    const fps = 1000 / 30; // 1 second divided by 30 "frames"
-    setTimeout(() => requestAnimationFrame(this.performLoop.bind(this)), fps);
   }
 
   constructor() {
@@ -193,52 +159,77 @@ class App {
       translateY: 0,
     };
 
-    this.camera = this.createCameraEntity();
-
-    // * these objects can have a speed and so on to be able to move around the screen
-    this.moveables = Array.from({ length: 120 }).map((_, i) =>
-      this.createVariableEntity({
-        height: generateRandomNumber(1, 100),
-        width: generateRandomNumber(1, 3),
-        color: "#3b86ccb2",
-        position: App.getEntityCoordinatesByIndex(i, 120),
-      })
-    );
+    this.camera = App.createCameraEntity();
 
     this.entities = [
-      // ...this.moveables,
-      ...Array.from({ length: 240 }).map((_, i) =>
-        this.createStaticEntity({
+      ...Array.from({ length: 60 }).map((_, i) =>
+        App.createVariableEntity({
           height: generateRandomNumber(1, 100),
           width: generateRandomNumber(1, 3),
-          color: "#3b86ccb2",
-          position: App.getEntityCoordinatesByIndex(i, -480),
+          color: "#653b6e99",
+          position: App.getCoordinatesByIndex(i, 120),
         })
       ),
-      ...Array.from({ length: 240 }).map((_, i) =>
-        this.createStaticEntity({
+      ...Array.from({ length: 480 }).map((_, i) =>
+        App.createVariableEntity({
           height: generateRandomNumber(1, 100),
           width: generateRandomNumber(1, 3),
-          color: "#bf2138b2",
-          position: App.getEntityCoordinatesByIndex(i, 480),
+          color: "#bf213866",
+          position: App.getCoordinatesByIndex(i, 480),
         })
       ),
-      // * these just hangout
       ...Array.from({ length: 1600 }).map((_, i) =>
-        this.createStaticEntity({
+        App.createVariableEntity({
           height: generateRandomNumber(1, 18),
           width: generateRandomNumber(1, 3),
-          color: "#a3b8c4b2",
-          position: App.getEntityCoordinatesByIndex(i, 1600, {
+          color: "#a3b8c4cc",
+          position: App.getCoordinatesByIndex(i, 1600, {
             shape: "square",
           }),
         })
       ),
-      // * this is the perspective of the user, can move
+      // * this is the perspective of the user, could move
       this.camera,
     ];
 
     requestAnimationFrame(this.performLoop.bind(this));
+  }
+
+  performLoop() {
+    // * set default transform to clear the canvas
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+    // * update camera position
+    App.updateEntityPosition(this.camera, 0, 0, this.camera.speed);
+
+    // * set view
+    this.view.translateX = -this.camera.position.x + this.canvas.width * 0.5;
+    this.view.translateY = -this.camera.position.y + this.canvas.height * 0.5;
+
+    // * apply view
+    this.ctx.setTransform(
+      this.view.scaleX,
+      this.view.skewY,
+      this.view.skewX,
+      this.view.scaleY,
+      this.view.translateX,
+      this.view.translateY
+    );
+
+    // * draw world / all entities
+    for (const entity of this.entities) {
+      this.ctx.fillStyle = entity.color;
+      this.ctx.fillRect(
+        entity.position.x - entity.width * 0.5,
+        entity.position.y - entity.height * 0.5,
+        entity.width,
+        entity.height
+      );
+    }
+
+    const fps = 1000 / 30; // 1 second divided by 30 "frames"
+    setTimeout(() => requestAnimationFrame(this.performLoop.bind(this)), fps);
   }
 }
 
